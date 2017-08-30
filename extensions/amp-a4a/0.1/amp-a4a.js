@@ -31,7 +31,7 @@ import {
   installFriendlyIframeEmbed,
   setFriendlyIframeEmbedVisible,
 } from '../../../src/friendly-iframe-embed';
-import {isLayoutSizeDefined} from '../../../src/layout';
+import {isLayoutSizeDefined, Layout} from '../../../src/layout';
 import {isAdPositionAllowed} from '../../../src/ad-helper';
 import {dev, user, duplicateErrorIfNecessary} from '../../../src/log';
 import {dict} from '../../../src/utils/object';
@@ -54,6 +54,10 @@ import {A4AVariableSource} from './a4a-variable-source';
 // TODO(tdrl): Temporary.  Remove when we migrate to using amp-analytics.
 import {getTimingDataAsync} from '../../../src/service/variable-source';
 import {getContextMetadata} from '../../../src/iframe-attributes';
+
+// Uncomment the next two lines when testing locally.
+//import '../../amp-ad/0.1/amp-ad-ui';
+//import '../../amp-ad/0.1/amp-ad-xorigin-iframe-handler';
 
 /** @type {Array<string>} */
 const METADATA_STRINGS = [
@@ -141,7 +145,6 @@ export const LIFECYCLE_STAGES = {
   iniLoad: '26',
   resumeCallback: '27',
   visIniLoad: '29',
-  upgradeDelay: '30',
 };
 
 /**
@@ -192,9 +195,6 @@ export class AmpA4A extends AMP.BaseElement {
     super(element);
     dev().assert(AMP.AmpAdUIHandler);
     dev().assert(AMP.AmpAdXOriginIframeHandler);
-
-    /** @private {?Promise<undefined>} */
-    this.keysetPromise_ = null;
 
     /** @private {?Promise<?CreativeMetaDataDef>} */
     this.adPromise_ = null;
@@ -256,6 +256,7 @@ export class AmpA4A extends AMP.BaseElement {
      * returned.
      *
      * @const {function():number}
+     * @private
      */
     this.getNow_ = (this.win.performance && this.win.performance.now) ?
         this.win.performance.now.bind(this.win.performance) : Date.now;
@@ -311,6 +312,9 @@ export class AmpA4A extends AMP.BaseElement {
      * @private @const {string}
      */
     this.releaseType_ = isCanary(this.win) ? 'ca' : 'pr';
+
+    /** @protected {boolean} */
+    this.isFluid = false;
   }
 
   /** @override */
@@ -324,7 +328,7 @@ export class AmpA4A extends AMP.BaseElement {
 
   /** @override */
   isLayoutSupported(layout) {
-    return isLayoutSizeDefined(layout);
+    return isLayoutSizeDefined(layout) || layout == Layout.FLUID;
   }
 
   /** @override */
@@ -334,32 +338,31 @@ export class AmpA4A extends AMP.BaseElement {
 
   /** @override */
   buildCallback() {
-    this.creativeSize_ = {
-      width: this.element.getAttribute('width'),
-      height: this.element.getAttribute('height'),
-    };
+    this.isFluid = this.element.getAttribute('height') == 'fluid';
+    this.creativeSize_ = this.isFluid
+        ? {width: 0, height: 0} : {
+          width: this.element.getAttribute('width'),
+          height: this.element.getAttribute('height'),
+        };
     this.protectedEmitLifecycleEvent_ = protectFunctionWrapper(
         this.emitLifecycleEvent, this,
         (err, varArgs) => {
           dev().error(TAG, this.element.getAttribute('type'),
               'Error on emitLifecycleEvent', err, varArgs) ;
         });
-    const upgradeDelayMs = Math.round(this.getResource().getUpgradeDelayMs());
-    dev().info(TAG,
-        `upgradeDelay ${this.element.getAttribute('type')}: ${upgradeDelayMs}`);
-    this.protectedEmitLifecycleEvent_('upgradeDelay', {
-      'forced_delta': upgradeDelayMs,
-    });
 
     this.uiHandler = new AMP.AmpAdUIHandler(this);
-
     const verifier = signatureVerifierFor(this.win);
-    this.keysetPromise_ =
-        Services.viewerForDoc(this.getAmpDoc()).whenFirstVisible().then(() => {
-          this.getSigningServiceNames().forEach(signingServiceName => {
-            verifier.loadKeyset(signingServiceName);
-          });
-        });
+    const visible = Services.viewerForDoc(this.getAmpDoc()).whenFirstVisible();
+    this.getSigningServiceNames().forEach(signingServiceName => {
+      verifier.loadKeyset(signingServiceName, visible);
+    });
+    if (this.isFluid) {
+      this.isRelayoutNeededFlag = true;
+      this.getResource().layoutCanceled();
+      Services.resourcesForDoc(this.getAmpDoc())
+          ./*OK*/requireLayout(this.element);
+    }
   }
 
   /** @override */
@@ -495,7 +498,7 @@ export class AmpA4A extends AMP.BaseElement {
       return false;
     }
     const slotRect = this.getIntersectionElementLayoutBox();
-    if (slotRect.height == 0 || slotRect.width == 0) {
+    if (!this.isFluid && (slotRect.height == 0 || slotRect.width == 0)) {
       dev().fine(
           TAG, 'onLayoutMeasure canceled due height/width 0', this.element);
       return false;
@@ -665,19 +668,21 @@ export class AmpA4A extends AMP.BaseElement {
           }
           const {bytes, headers} = responseParts;
           const size = this.extractSize(responseParts.headers);
+          // TODO(levitzky) If a size header was returned, then make sure to set
+          // this.isFluid to false.
           this.creativeSize_ = size || this.creativeSize_;
-          if (this.experimentalNonAmpCreativeRenderMethod_ !=
-              XORIGIN_MODE.CLIENT_CACHE &&
+          if ((this.isFluid || this.experimentalNonAmpCreativeRenderMethod_ !=
+              XORIGIN_MODE.CLIENT_CACHE) &&
               bytes) {
             this.creativeBody_ = bytes;
           }
           this.protectedEmitLifecycleEvent_('adResponseValidateStart');
-          return this.keysetPromise_
-              .then(() => signatureVerifierFor(this.win)
-                  .verify(bytes, headers, (eventName, extraVariables) => {
-                    this.protectedEmitLifecycleEvent_(
-                        eventName, extraVariables);
-                  }))
+          return this.isFluid
+              ? Promise.resolve(bytes)
+              : signatureVerifierFor(this.win)
+              .verify(bytes, headers, (eventName, extraVariables) => {
+                this.protectedEmitLifecycleEvent_(eventName, extraVariables);
+              })
               .then(status => {
                 if (getMode().localDev &&
                     this.element.getAttribute('type') == 'fake') {
@@ -707,11 +712,10 @@ export class AmpA4A extends AMP.BaseElement {
           checkStillCurrent();
           // Need to know if creative was verified as part of render outside
           // viewport but cannot wait on promise.  Sadly, need a state a
-          // variable.
-          this.isVerifiedAmpCreative_ = !!creative;
-          // TODO(levitzky) If creative comes back null, we should consider re-
-          // fetching the signing server public keys and try the verification
-          // step again.
+          // variable. NOTE: Since we skip verification for Fluid creatives, we
+          // cannot guarantee that a creative is AMP just by arriving at this
+          // point in the code.
+          this.isVerifiedAmpCreative_ = !this.isFluid && !!creative;
           return creative && utf8Decode(creative);
         })
         // This block returns CreativeMetaDataDef iff the creative was verified
@@ -734,7 +738,7 @@ export class AmpA4A extends AMP.BaseElement {
           // is just to prefetch.
           const extensions = Services.extensionsFor(this.win);
           creativeMetaDataDef.customElementExtensions.forEach(
-              extensionId => extensions.preloadExtension(extensionId));
+              extensionId => extensions.loadExtension(extensionId));
           return creativeMetaDataDef;
         })
         .catch(error => {
@@ -878,8 +882,8 @@ export class AmpA4A extends AMP.BaseElement {
         this.protectedEmitLifecycleEvent_('iframeAlreadyExists');
         return Promise.resolve();
       }
-      if (!creativeMetaData) {
-        // Non-AMP creative case, will verify ad url existence.
+      if (!creativeMetaData || this.isFluid) {
+        // Non-AMP creative or Fluid case, will verify ad url existence.
         return this.renderNonAmpCreative_();
       }
       // Must be an AMP creative.
@@ -960,6 +964,7 @@ export class AmpA4A extends AMP.BaseElement {
     this.fromResumeCallback = false;
     this.experimentalNonAmpCreativeRenderMethod_ =
         Services.platformFor(this.win).isIos() ? XORIGIN_MODE.SAFEFRAME : null;
+    this.isFluid = false;
   }
 
   /**
@@ -1178,7 +1183,8 @@ export class AmpA4A extends AMP.BaseElement {
         /* ignoreStack */ true);
     // Haven't rendered yet, so try rendering via one of our
     // cross-domain iframe solutions.
-    const method = this.experimentalNonAmpCreativeRenderMethod_;
+    const method = (this.isFluid && XORIGIN_MODE.SAFEFRAME) ||
+        this.experimentalNonAmpCreativeRenderMethod_;
     let renderPromise = Promise.resolve(false);
     if ((method == XORIGIN_MODE.SAFEFRAME ||
          method == XORIGIN_MODE.NAMEFRAME) &&
@@ -1358,9 +1364,10 @@ export class AmpA4A extends AMP.BaseElement {
    * @private
    */
   renderViaNameAttrOfXOriginIframe_(creativeBody) {
-    const method = this.experimentalNonAmpCreativeRenderMethod_;
+    const method = (this.isFluid && XORIGIN_MODE.SAFEFRAME) ||
+        this.experimentalNonAmpCreativeRenderMethod_;
     dev().assert(method == XORIGIN_MODE.SAFEFRAME ||
-        method == XORIGIN_MODE.NAMEFRAME,
+        method == XORIGIN_MODE.NAMEFRAME || this.isFluid,
         'Unrecognized A4A cross-domain rendering mode: %s', method);
     this.protectedEmitLifecycleEvent_('renderSafeFrameStart', {
       'isAmpCreative': this.isVerifiedAmpCreative_,
@@ -1556,3 +1563,5 @@ export function assignAdUrlToError(error, adUrl) {
   (error.args || (error.args = {}))['au'] =
     adUrl.substring(adQueryIdx + 1, adQueryIdx + 251);
 };
+
+

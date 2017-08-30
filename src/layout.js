@@ -31,6 +31,7 @@ export const Layout = {
   NODISPLAY: 'nodisplay',
   FIXED: 'fixed',
   FIXED_HEIGHT: 'fixed-height',
+  FLUID: 'fluid',
   RESPONSIVE: 'responsive',
   CONTAINER: 'container',
   FILL: 'fill',

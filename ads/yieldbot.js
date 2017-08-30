@@ -40,7 +40,8 @@ export function yieldbot(global, data) {
           dimensions = getMultiSizeDimensions(multiSizeDataStr,
               primaryWidth,
               primaryHeight,
-              false);
+              false /* 2/3rds requirement */,
+              false /* isFluid */);
           dimensions.unshift([primaryWidth, primaryHeight]);
         } else {
           dimensions = [[primaryWidth, primaryHeight]];
