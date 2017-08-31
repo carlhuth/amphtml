@@ -595,12 +595,14 @@ export class AmpA4A extends AMP.BaseElement {
           checkStillCurrent();
           this.adUrl_ = adUrl;
           this.protectedEmitLifecycleEvent_('urlBuilt');
+          console.log("### SANITY CHECK. Sending request to: " + adUrl);
           return adUrl && this.sendXhrRequest(adUrl);
         })
         // The following block returns either the response (as a {bytes, headers}
         // object), or null if no response is available / response is empty.
         /** @return {?Promise<?{bytes: !ArrayBuffer, headers: !Headers}>} */
         .then(fetchResponse => {
+          console.log("### GOT RESPONSE: " + fetchResponse);
           checkStillCurrent();
           this.protectedEmitLifecycleEvent_('adRequestEnd');
           // If the response is null, we want to return null so that
@@ -671,9 +673,11 @@ export class AmpA4A extends AMP.BaseElement {
           // TODO(levitzky) If a size header was returned, then make sure to set
           // this.isFluid to false.
           this.creativeSize_ = size || this.creativeSize_;
+          console.log("#### HERE");
           if ((this.isFluid || this.experimentalNonAmpCreativeRenderMethod_ !=
               XORIGIN_MODE.CLIENT_CACHE) &&
               bytes) {
+            console.log("#### Setting creativeBody_: " + bytes);
             this.creativeBody_ = bytes;
           }
           this.protectedEmitLifecycleEvent_('adResponseValidateStart');
@@ -1123,7 +1127,7 @@ export class AmpA4A extends AMP.BaseElement {
     };
     return Services.xhrFor(this.win)
         .fetch(adUrl, xhrInit)
-        .catch(error => {
+        .catch(error => { debugger;
           // If an error occurs, let the ad be rendered via iframe after delay.
           // TODO(taymonbeal): Figure out a more sophisticated test for deciding
           // whether to retry with an iframe after an ad request failure or just
@@ -1173,6 +1177,8 @@ export class AmpA4A extends AMP.BaseElement {
    * @private
    */
   renderNonAmpCreative_() {
+    debugger;
+    console.log(this.creativeBody_);
     if (this.element.getAttribute('disable3pfallback') == 'true') {
       user().warn(TAG, this.element.getAttribute('type'),
           'fallback to 3p disabled');
@@ -1188,7 +1194,7 @@ export class AmpA4A extends AMP.BaseElement {
     let renderPromise = Promise.resolve(false);
     if ((method == XORIGIN_MODE.SAFEFRAME ||
          method == XORIGIN_MODE.NAMEFRAME) &&
-        this.creativeBody_) {
+        this.creativeBody_ || this.isFluid) {
       renderPromise = this.renderViaNameAttrOfXOriginIframe_(
           this.creativeBody_);
       this.creativeBody_ = null;  // Free resources.

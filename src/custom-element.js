@@ -276,9 +276,9 @@ export function applyLayout_(element) {
     layout = inputLayout;
   } else if (!width && !height) {
     layout = Layout.CONTAINER;
-  } else if (height == 'fluid') {
+  } /*else if (height == 'fluid') {
     layout = Layout.FLUID;
-  } else if (height && (!width || width == 'auto')) {
+  }*/ else if (height && (!width || width == 'auto')) {
     layout = Layout.FIXED_HEIGHT;
   } else if (height && width && (sizesAttr || heightsAttr)) {
     layout = Layout.RESPONSIVE;
@@ -350,12 +350,6 @@ export function applyLayout_(element) {
     if (height) {
       setStyle(element, 'height', height);
     }
-  } else if (layout == Layout.FLUID) { debugger;
-    setStyles(element, {
-      width: '1px',
-      height: '1px',
-      display: 'none',
-    });
   }
   return layout;
 }
