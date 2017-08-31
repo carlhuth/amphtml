@@ -31,7 +31,7 @@ import {
   installFriendlyIframeEmbed,
   setFriendlyIframeEmbedVisible,
 } from '../../../src/friendly-iframe-embed';
-import {isLayoutSizeDefined} from '../../../src/layout';
+import {isLayoutSizeDefined, Layout} from '../../../src/layout';
 import {isAdPositionAllowed} from '../../../src/ad-helper';
 import {dev, user, duplicateErrorIfNecessary} from '../../../src/log';
 import {dict} from '../../../src/utils/object';
@@ -311,6 +311,9 @@ export class AmpA4A extends AMP.BaseElement {
      * @private @const {string}
      */
     this.releaseType_ = isCanary(this.win) ? 'ca' : 'pr';
+
+    /** @protected {boolean} */
+    this.isFluid = false;
   }
 
   /** @override */
@@ -324,7 +327,7 @@ export class AmpA4A extends AMP.BaseElement {
 
   /** @override */
   isLayoutSupported(layout) {
-    return isLayoutSizeDefined(layout);
+    return isLayoutSizeDefined(layout) || layout == Layout.FLUID;
   }
 
   /** @override */
@@ -334,10 +337,12 @@ export class AmpA4A extends AMP.BaseElement {
 
   /** @override */
   buildCallback() {
-    this.creativeSize_ = {
-      width: this.element.getAttribute('width'),
-      height: this.element.getAttribute('height'),
-    };
+    this.isFluid = this.element.getAttribute('height') == 'fluid';
+    this.creativeSize_ = this.isFluid
+        ? {width: 0, height: 0} : {
+          width: this.element.getAttribute('width'),
+          height: this.element.getAttribute('height'),
+        };
     this.protectedEmitLifecycleEvent_ = protectFunctionWrapper(
         this.emitLifecycleEvent, this,
         (err, varArgs) => {
@@ -495,7 +500,7 @@ export class AmpA4A extends AMP.BaseElement {
       return false;
     }
     const slotRect = this.getIntersectionElementLayoutBox();
-    if (slotRect.height == 0 || slotRect.width == 0) {
+    if (!this.isFluid && (slotRect.height == 0 || slotRect.width == 0)) {
       dev().fine(
           TAG, 'onLayoutMeasure canceled due height/width 0', this.element);
       return false;
@@ -665,11 +670,22 @@ export class AmpA4A extends AMP.BaseElement {
           }
           const {bytes, headers} = responseParts;
           const size = this.extractSize(responseParts.headers);
+          // If a size header is returned, then we know we're not Fluid, unless
+          // the dimensions are 0x0.
+          // TODO(levitzky) Once Fluid responses no longer contain the creative
+          // size header at all, we can remove the height/width check from the
+          // condition below.
+          if (size && size.height != 0 && size.width != 0) {
+            this.isFluid = false;
+          }
           this.creativeSize_ = size || this.creativeSize_;
-          if (this.experimentalNonAmpCreativeRenderMethod_ !=
-              XORIGIN_MODE.CLIENT_CACHE &&
+          if ((this.isFluid || this.experimentalNonAmpCreativeRenderMethod_ !=
+              XORIGIN_MODE.CLIENT_CACHE) &&
               bytes) {
             this.creativeBody_ = bytes;
+          }
+          if (this.isFluid) {
+            return Promise.resolve(bytes);
           }
           this.protectedEmitLifecycleEvent_('adResponseValidateStart');
           return this.keysetPromise_
@@ -708,10 +724,7 @@ export class AmpA4A extends AMP.BaseElement {
           // Need to know if creative was verified as part of render outside
           // viewport but cannot wait on promise.  Sadly, need a state a
           // variable.
-          this.isVerifiedAmpCreative_ = !!creative;
-          // TODO(levitzky) If creative comes back null, we should consider re-
-          // fetching the signing server public keys and try the verification
-          // step again.
+          this.isVerifiedAmpCreative_ = !this.isFluid && !!creative;
           return creative && utf8Decode(creative);
         })
         // This block returns CreativeMetaDataDef iff the creative was verified
@@ -878,6 +891,11 @@ export class AmpA4A extends AMP.BaseElement {
         this.protectedEmitLifecycleEvent_('iframeAlreadyExists');
         return Promise.resolve();
       }
+      if (this.isFluid) {
+        // TODO(levitzky) Need way of handling this.creativeBody_ == null case.
+        // Probably just force collapse?
+        return this.renderViaNameAttrOfXOriginIframe_(this.creativeBody_);
+      }
       if (!creativeMetaData) {
         // Non-AMP creative case, will verify ad url existence.
         return this.renderNonAmpCreative_();
@@ -960,6 +978,7 @@ export class AmpA4A extends AMP.BaseElement {
     this.fromResumeCallback = false;
     this.experimentalNonAmpCreativeRenderMethod_ =
         Services.platformFor(this.win).isIos() ? XORIGIN_MODE.SAFEFRAME : null;
+    this.isFluid = false;
   }
 
   /**
@@ -1358,7 +1377,8 @@ export class AmpA4A extends AMP.BaseElement {
    * @private
    */
   renderViaNameAttrOfXOriginIframe_(creativeBody) {
-    const method = this.experimentalNonAmpCreativeRenderMethod_;
+    const method = (this.isFluid && XORIGIN_MODE.SAFEFRAME) ||
+        this.experimentalNonAmpCreativeRenderMethod_;
     dev().assert(method == XORIGIN_MODE.SAFEFRAME ||
         method == XORIGIN_MODE.NAMEFRAME,
         'Unrecognized A4A cross-domain rendering mode: %s', method);

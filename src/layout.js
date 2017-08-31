@@ -31,6 +31,7 @@ export const Layout = {
   NODISPLAY: 'nodisplay',
   FIXED: 'fixed',
   FIXED_HEIGHT: 'fixed-height',
+  FLUID: 'fluid',
   RESPONSIVE: 'responsive',
   CONTAINER: 'container',
   FILL: 'fill',
@@ -129,7 +130,8 @@ export function isLayoutSizeDefined(layout) {
       layout == Layout.FIXED_HEIGHT ||
       layout == Layout.RESPONSIVE ||
       layout == Layout.FILL ||
-      layout == Layout.FLEX_ITEM);
+      layout == Layout.FLEX_ITEM ||
+      layout == Layout.FLUID);
 }
 
 

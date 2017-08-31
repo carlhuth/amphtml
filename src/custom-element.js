@@ -246,7 +246,8 @@ export function applyLayout_(element) {
   const inputWidth = (widthAttr && widthAttr != 'auto') ?
       parseLength(widthAttr) : widthAttr;
   user().assert(inputWidth !== undefined, 'Invalid width value: %s', widthAttr);
-  const inputHeight = heightAttr ? parseLength(heightAttr) : null;
+  const inputHeight = (heightAttr && heightAttr != 'fluid') ?
+      parseLength(heightAttr) : heightAttr;
   user().assert(inputHeight !== undefined, 'Invalid height value: %s',
       heightAttr);
 
@@ -275,6 +276,8 @@ export function applyLayout_(element) {
     layout = inputLayout;
   } else if (!width && !height) {
     layout = Layout.CONTAINER;
+  } else if (height == 'fluid') {
+    layout = Layout.FLUID;
   } else if (height && (!width || width == 'auto')) {
     layout = Layout.FIXED_HEIGHT;
   } else if (height && width && (sizesAttr || heightsAttr)) {
