@@ -309,6 +309,9 @@ export function applyLayout_(element) {
     user().assert(heightsAttr === null,
         'Unexpected "heights" attribute for none-responsive layout');
   }
+  if (layout == Layout.FLUID) {
+    user().assert(!width, 'Unexpected "width" attribute for fluid layout');
+  }
 
   // Apply UI.
   element.classList.add(getLayoutClass(layout));
@@ -350,6 +353,8 @@ export function applyLayout_(element) {
     if (height) {
       setStyle(element, 'height', height);
     }
+  } else if (layout == Layout.FLUID) {
+    element.classList.add('i-amphtml-layout-awaiting-size');
   }
   return layout;
 }
