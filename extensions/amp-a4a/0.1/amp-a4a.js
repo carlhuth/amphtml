@@ -54,6 +54,7 @@ import {A4AVariableSource} from './a4a-variable-source';
 // TODO(tdrl): Temporary.  Remove when we migrate to using amp-analytics.
 import {getTimingDataAsync} from '../../../src/service/variable-source';
 import {getContextMetadata} from '../../../src/iframe-attributes';
+import {listenFor, postMessageToWindows} from '../../../src/iframe-helper';
 
 /** @type {Array<string>} */
 const METADATA_STRINGS = [
@@ -1326,6 +1327,20 @@ export class AmpA4A extends AMP.BaseElement {
         /** @type {!Document} */ (this.element.ownerDocument),
         'iframe', /** @type {!JsonObject} */ (
         Object.assign(mergedAttributes, SHARED_IFRAME_PROPERTIES)));
+    if (this.isFluid) {
+      // TODO(levitzky) PUT ALL FLUID LOGIC IN HERE FOR NOW
+      this.win['SECRETSTASH'] = {sentinel: this.sentinel};
+      listenFor(this.iframe, 'geometry_update', (data, source, origin) => {
+        console.log('Victory.');
+        // Don't worry about it...
+        data.i = 1 - data.i;
+        postMessageToWindows(
+            this.iframe,
+            [{win: source, origin}],
+            'connect-message',
+            JSON.stringify(data));
+      }, /* opt_is3p */ true);
+    }
     // TODO(keithwrightbos): noContentCallback?
     this.xOriginIframeHandler_ = new AMP.AmpAdXOriginIframeHandler(this);
     // Iframe is appended to element as part of xorigin frame handler init.

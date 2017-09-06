@@ -195,11 +195,13 @@ function registerGlobalListenerIfNeeded(parentWin) {
   if (parentWin.listeningFors) {
     return;
   }
-  const listenForListener = function(event) {
+  const listenForListener = function(event) { debugger;
     if (!getData(event)) {
       return;
     }
     const data = parseIfNeeded(getData(event));
+    data['sentinel'] = data['sentinel'] || parentWin['SECRETSTASH']['sentinel'] || 'foo';
+    data['type'] = 'geometry_update';
     if (!data || !data['sentinel']) {
       return;
     }

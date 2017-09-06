@@ -300,7 +300,7 @@ export class AbstractAmpContext {
     // to check the name attribute as it has been bypassed.
     // TODO(alanorozco): why the heck could AMP_CONTEXT_DATA be two different
     // types? FIX THIS.
-    if (isObject(this.win_.sf_) && this.win_.sf_.cfg) {
+    if (isObject(this.win_.sf_) && this.win_.sf_.cfg) { debugger;
       this.setupMetadata_(/** @type {!string}*/(this.win_.sf_.cfg));
     } else if (this.win_.AMP_CONTEXT_DATA) {
       if (typeof this.win_.AMP_CONTEXT_DATA == 'string') {
