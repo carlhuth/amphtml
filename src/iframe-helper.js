@@ -201,7 +201,6 @@ function registerGlobalListenerIfNeeded(parentWin) {
     }
     const data = parseIfNeeded(getData(event));
     data['sentinel'] = data['sentinel'] || parentWin['SECRETSTASH']['sentinel'] || 'foo';
-    data['type'] = 'geometry_update';
     if (!data || !data['sentinel']) {
       return;
     }
@@ -216,7 +215,9 @@ function registerGlobalListenerIfNeeded(parentWin) {
       return;
     }
 
-    let listeners = listenForEvents[data['type']];
+    // SafeFrame's postmessaging protocol specifies the message type under
+    // parameter 's'.
+    let listeners = listenForEvents[data['type'] || data['s']];
     if (!listeners) {
       return;
     }

@@ -39,7 +39,7 @@ import {getMode} from '../../../src/mode';
 import {isArray, isObject, isEnumValue} from '../../../src/types';
 import {utf8Decode} from '../../../src/utils/bytes';
 import {isCanary, isExperimentOn} from '../../../src/experiments';
-import {setStyle} from '../../../src/style';
+import {setStyle, setStyles} from '../../../src/style';
 import {assertHttpsUrl} from '../../../src/url';
 import {parseJson} from '../../../src/json';
 import {handleClick} from '../../../ads/alp/handler';
@@ -54,7 +54,7 @@ import {A4AVariableSource} from './a4a-variable-source';
 // TODO(tdrl): Temporary.  Remove when we migrate to using amp-analytics.
 import {getTimingDataAsync} from '../../../src/service/variable-source';
 import {getContextMetadata} from '../../../src/iframe-attributes';
-import {listenFor, postMessageToWindows} from '../../../src/iframe-helper';
+import {listenFor, postMessage} from '../../../src/iframe-helper';
 
 /** @type {Array<string>} */
 const METADATA_STRINGS = [
@@ -1330,15 +1330,20 @@ export class AmpA4A extends AMP.BaseElement {
     if (this.isFluid) {
       // TODO(levitzky) PUT ALL FLUID LOGIC IN HERE FOR NOW
       this.win['SECRETSTASH'] = {sentinel: this.sentinel};
-      listenFor(this.iframe, 'geometry_update', (data, source, origin) => {
-        console.log('Victory.');
-        // Don't worry about it...
-        data.i = 1 - data.i;
-        postMessageToWindows(
-            this.iframe,
-            [{win: source, origin}],
-            'connect-message',
-            JSON.stringify(data));
+      listenFor(this.iframe, 'init_done',
+          (data, source, origin) => {
+            debugger;
+      }, /* opt_is3p */ true);
+      listenFor(this.iframe, 'creative_geometry_update',
+          (data, source, origin) => {
+            debugger;
+            const styleString = this.iframe.getAttribute('style');
+            if (/width: 0px/.test(styleString) && /height: 0px/.test(styleString)) {
+              setStyles(this.iframe, {
+                width: '100%',
+                height: '100%',
+              });
+            }
       }, /* opt_is3p */ true);
     }
     // TODO(keithwrightbos): noContentCallback?
@@ -1347,7 +1352,18 @@ export class AmpA4A extends AMP.BaseElement {
     // Executive onCreativeRender after init to ensure it can get reference
     // to frame but prior to load to allow for earlier access.
     const frameLoadPromise =
-        this.xOriginIframeHandler_.init(this.iframe, /* opt_isA4A */ true);
+        this.xOriginIframeHandler_.init(this.iframe, /* opt_isA4A */ true)
+        .then(() => {
+          debugger;
+          if (this.isFluid) {
+            postMessage(
+                this.iframe,
+                'connect-message',
+                JSON.stringify({message: 'connect', c: 'sfchannel1'}),
+                'https://tpc.googlesyndication.com');
+          }
+          return Promise.resolve();
+        });
     protectFunctionWrapper(this.onCreativeRender, this, err => {
       dev().error(TAG, this.element.getAttribute('type'),
           'Error executing onCreativeRender', err);
