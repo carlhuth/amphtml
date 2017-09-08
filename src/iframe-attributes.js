@@ -80,8 +80,8 @@ export function getContextMetadata(
     'sentinel': sentinel,
   });
   attributes['uid'] = 1;
-  attributes['hostPeerName'] = 'http://localhost:8000';
-  attributes['initialGeometry'] = "{\"windowCoords_t\":0,\"windowCoords_r\":1920,\"windowCoords_b\":1174,\"windowCoords_l\":0,\"frameCoords_t\":111.875,\"frameCoords_r\":1150,\"frameCoords_b\":111.875,\"frameCoords_l\":8,\"styleZIndex\":\"auto\",\"allowedExpansion_t\":111.875,\"allowedExpansion_r\":770,\"allowedExpansion_b\":506.125,\"allowedExpansion_l\":8,\"xInView\":0,\"yInView\":0}";
+  attributes['hostPeerName'] = parentWindow.location.origin;
+  attributes['initialGeometry'] = "{\"windowCoords_t\":0,\"windowCoords_r\":0,\"windowCoords_b\":0,\"windowCoords_l\":0,\"frameCoords_t\":0,\"frameCoords_r\":0,\"frameCoords_b\":0,\"frameCoords_l\":0,\"styleZIndex\":\"auto\",\"allowedExpansion_t\":0,\"allowedExpansion_r\":0,\"allowedExpansion_b\":0,\"allowedExpansion_l\":0,\"xInView\":0,\"yInView\":0}";
   attributes['permissions'] = "{\"expandByOverlay\":false,\"expandByPush\":false,\"readCookie\":false,\"writeCookie\":false}";
   attributes['metadata'] = "{\"shared\":{\"sf_ver\":\"1-0-9\",\"ck_on\":1,\"flash_ver\":\"26.0.0\"}}";
   attributes['reportCreativeGeometry'] = true;
