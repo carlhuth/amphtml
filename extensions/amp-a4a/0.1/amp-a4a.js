@@ -1323,6 +1323,7 @@ export class AmpA4A extends AMP.BaseElement {
     if (this.sentinel) {
       mergedAttributes['data-amp-3p-sentinel'] = this.sentinel;
     }
+
     this.iframe = createElementWithAttributes(
         /** @type {!Document} */ (this.element.ownerDocument),
         'iframe', /** @type {!JsonObject} */ (
@@ -1330,10 +1331,6 @@ export class AmpA4A extends AMP.BaseElement {
     if (this.isFluid) {
       // TODO(levitzky) PUT ALL FLUID LOGIC IN HERE FOR NOW
       this.win['SECRETSTASH'] = {sentinel: this.sentinel};
-      listenFor(this.iframe, 'init_done',
-          (data, source, origin) => {
-            debugger;
-      }, /* opt_is3p */ true);
       listenFor(this.iframe, 'creative_geometry_update',
           (data, source, origin) => {
             debugger;
@@ -1442,6 +1439,42 @@ export class AmpA4A extends AMP.BaseElement {
       // TODO(bradfrizzell): change name of function and var
       let contextMetadata = getContextMetadata(
           this.win, this.element, this.sentinel);
+      if (this.isFluid) {
+        contextMetadata['uid'] = 1;
+        contextMetadata['hostPeerName'] = this.win.location.origin;
+        contextMetadata['initialGeometry'] = JSON.stringify({
+          windowCoords_t: 0,
+          windowCoords_r: 0,
+          windowCoords_b: 0,
+          windowCoords_l: 0,
+          frameCoords_t: 0,
+          frameCoords_r: 0,
+          frameCoords_b: 0,
+          frameCoords_l: 0,
+          styleZIndex: 'auto',
+          allowedExpansion_t: 0,
+          allowedExpansion_r: 0,
+          allowedExpansion_b: 0,
+          allowedExpansion_l: 0,
+          xInView: 0,
+          yInView: 0,
+        });
+        contextMetadata['permissions'] = JSON.stringify({
+          expandByOverlay: false,
+          expandByPush: false,
+          readCookie: false,
+          writeCookie: false
+        });
+        contextMetadata['metadata'] = JSON.stringify({
+          shared: {
+            sf_ver: this.safeframeVersion_,
+            ck_on: 1,
+            flash_ver: '26.0.0',
+          },
+        });
+        contextMetadata['reportCreativeGeometry'] = true;
+        contextMetadata['isDifferentSourceWindow'] = false;
+      }
       // TODO(bradfrizzell) Clean up name assigning.
       if (method == XORIGIN_MODE.NAMEFRAME) {
         contextMetadata['creative'] = creative;
