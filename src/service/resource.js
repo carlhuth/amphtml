@@ -561,11 +561,9 @@ export class Resource {
    * @return {boolean}
    */
   isDisplayed() {
-    return (this.layoutBox_.height > 0 && this.layoutBox_.width > 0 ||
-        (this.element.tagName.toLowerCase() == 'amp-ad' &&
-         this.element.getAttribute('height') == 'fluid')) &&
+    return ((this.layoutBox_.height > 0 || this.layoutBox_.width > 0) &&
         !!this.element.ownerDocument &&
-        !!this.element.ownerDocument.defaultView;
+        !!this.element.ownerDocument.defaultView);
   }
 
   /**
