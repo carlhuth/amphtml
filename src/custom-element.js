@@ -352,9 +352,7 @@ export function applyLayout_(element) {
     }
   } else if (layout == Layout.FLUID) {
     element.classList.add('i-amphtml-layout-awaiting-size');
-    if (!width) {
-      setStyle(element, 'width', '100%');
-    }
+    setStyle(element, 'width', width ? width : '100%');
   }
   return layout;
 }

@@ -200,7 +200,7 @@ function registerGlobalListenerIfNeeded(parentWin) {
       return;
     }
     const data = parseIfNeeded(getData(event));
-    data['sentinel'] = data['sentinel'] || parentWin['SECRETSTASH']['sentinel'] || 'foo';
+    data['sentinel'] = 'fake-sentinel';
     if (!data || !data['sentinel']) {
       return;
     }

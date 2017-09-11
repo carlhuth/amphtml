@@ -630,7 +630,10 @@ export class AmpA4A extends AMP.BaseElement {
           }
           const safeframeVersionHeader =
             fetchResponse.headers.get(SAFEFRAME_VERSION_HEADER);
-          if (/^[0-9-]+$/.test(safeframeVersionHeader) &&
+          // For Fluid ads, we can't change the safeframe version because the ad
+          // request is made with DEFAULT_SAFEFRAME_VERSION, which is the
+          // version that it will expect the host container to have.
+          if (!this.isFluid && /^[0-9-]+$/.test(safeframeVersionHeader) &&
               safeframeVersionHeader != DEFAULT_SAFEFRAME_VERSION) {
             this.safeframeVersion_ = safeframeVersionHeader;
             this.preconnect.preload(this.getSafeframePath_());
@@ -1330,15 +1333,27 @@ export class AmpA4A extends AMP.BaseElement {
         Object.assign(mergedAttributes, SHARED_IFRAME_PROPERTIES)));
     if (this.isFluid) {
       // TODO(levitzky) PUT ALL FLUID LOGIC IN HERE FOR NOW
-      this.win['SECRETSTASH'] = {sentinel: this.sentinel};
       listenFor(this.iframe, 'creative_geometry_update',
           (data, source, origin) => {
             debugger;
+            // The first creative_geometry_update message will contain bad
+            // geometric data, as it will have been computed using the initial,
+            // incorrect, iframe style. We use this first message as a
+            // triggering point to restyle the iframe, which will in turn cause
+            // safeframe to send another creative_geometry_update message, this
+            // time containing the correct information.
             const styleString = this.iframe.getAttribute('style');
             if (/width: 0px/.test(styleString) && /height: 0px/.test(styleString)) {
               setStyles(this.iframe, {
                 width: '100%',
                 height: '100%',
+                position: 'relative',
+              });
+            } else {
+              const payload = JSON.parse(data.p);
+              this.attemptChangeSize(payload.height, payload.width).catch(error => {
+                debugger;
+                console.log(error);
               });
             }
       }, /* opt_is3p */ true);
@@ -1437,6 +1452,7 @@ export class AmpA4A extends AMP.BaseElement {
           return Promise.reject('Unrecognized rendering mode request');
       }
       // TODO(bradfrizzell): change name of function and var
+      this.sentinel = 'fake-sentinel';
       let contextMetadata = getContextMetadata(
           this.win, this.element, this.sentinel);
       if (this.isFluid) {
@@ -1474,6 +1490,10 @@ export class AmpA4A extends AMP.BaseElement {
         });
         contextMetadata['reportCreativeGeometry'] = true;
         contextMetadata['isDifferentSourceWindow'] = false;
+        // Even though we already include this information as a data attribute,
+        // SafeFrame doesn't know to look there for it, so we need to add it
+        // here also.
+        contextMetadata['sentinel'] = this.sentinel;
       }
       // TODO(bradfrizzell) Clean up name assigning.
       if (method == XORIGIN_MODE.NAMEFRAME) {
